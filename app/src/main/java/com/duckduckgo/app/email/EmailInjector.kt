@@ -18,12 +18,14 @@ package com.duckduckgo.app.email
 
 import android.webkit.WebView
 import androidx.annotation.UiThread
+import androidx.tracing.Trace
 import com.duckduckgo.app.autofill.JavascriptInjector
 import com.duckduckgo.app.browser.DuckDuckGoUrlDetector
 import com.duckduckgo.app.email.EmailJavascriptInterface.Companion.JAVASCRIPT_INTERFACE_NAME
 import com.duckduckgo.app.global.DispatcherProvider
 import com.duckduckgo.autofill.api.Autofill
 import com.duckduckgo.autofill.api.AutofillFeature
+import kotlin.random.Random
 
 interface EmailInjector {
 
@@ -70,11 +72,14 @@ class EmailInjectorJs(
         alias: String?,
         url: String?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("EMAIL_INJECTOR_INJECT_ADDRESS_EVALUATE_JAVASCRIPT", traceCookie)
         url?.let {
             if (isFeatureEnabled() && !autofill.isAnException(url)) {
                 webView.evaluateJavascript("javascript:${javaScriptInjector.getAliasFunctions(webView.context, alias)}", null)
             }
         }
+        Trace.endAsyncSection("EMAIL_INJECTOR_INJECT_ADDRESS_EVALUATE_JAVASCRIPT", traceCookie)
     }
 
     @UiThread
@@ -82,11 +87,14 @@ class EmailInjectorJs(
         webView: WebView,
         url: String?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("EMAIL_INJECTOR_NOTIFY_EVALUATE_JAVASCRIPT", traceCookie)
         url?.let {
             if (isFeatureEnabled() && isDuckDuckGoUrl(url) && !emailManager.isSignedIn()) {
                 webView.evaluateJavascript("javascript:${javaScriptInjector.getSignOutFunctions(webView.context)}", null)
             }
         }
+        Trace.endAsyncSection("EMAIL_INJECTOR_NOTIFY_EVALUATE_JAVASCRIPT", traceCookie)
     }
 
     private fun isFeatureEnabled() = autofillFeature.self().isEnabled()

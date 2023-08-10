@@ -768,6 +768,8 @@ class BrowserTabFragment :
 
     override fun onStop() {
         alertDialog?.dismiss()
+        // [ANA] TEMP: Need to make sure the website is not cached between test iterations.
+        webView?.clearCache(true)
         super.onStop()
     }
 
@@ -2815,7 +2817,10 @@ class BrowserTabFragment :
 
         fun updateToolbarActionsVisibility(viewState: BrowserViewState) {
             tabsButton?.isVisible = viewState.showTabsButton
-            fireMenuButton?.isVisible = viewState.fireButton is HighlightableButton.Visible
+            // [ANA] TEMP: Temporarily removed the fire button as the animation prevented the device idle state at the end of
+            // the test iteration.
+            fireMenuButton?.isVisible = false // viewState.fireButton is HighlightableButton.Visible
+
             menuButton?.isVisible = viewState.showMenuButton is HighlightableButton.Visible
 
             val targetView = if (viewState.showMenuButton.isHighlighted()) {
@@ -2845,7 +2850,9 @@ class BrowserTabFragment :
         }
 
         private fun decorateToolbarWithButtons() {
-            fireMenuButton?.show()
+            // [ANA] TEMP: Temporarily removed the fire button as the animation prevented the device idle state at the end of
+            // the test iteration.
+            fireMenuButton?.hide()
             fireMenuButton?.setOnClickListener {
                 browserActivity?.launchFire()
                 pixel.fire(
@@ -3286,7 +3293,8 @@ class BrowserTabFragment :
                 is HomePanelCta -> showHomeCta(configuration, favorites)
                 is DaxBubbleCta -> showDaxCta(configuration)
                 is BubbleCta -> showBubbleCta(configuration)
-                is DialogCta -> showDaxDialogCta(configuration)
+                // [ANA] TEMP: Temporarily removed the Dax DialogCta.
+                is DialogCta -> {} // showDaxDialogCta(configuration)
             }
             newBrowserTab.messageCta.gone()
         }

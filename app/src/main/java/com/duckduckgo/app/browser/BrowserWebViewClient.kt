@@ -26,6 +26,7 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
 import androidx.core.net.toUri
+import androidx.tracing.Trace
 import com.duckduckgo.adclick.api.AdClickManager
 import com.duckduckgo.anrs.api.CrashLogger
 import com.duckduckgo.app.accessibility.AccessibilityManager
@@ -52,6 +53,7 @@ import java.net.URI
 import javax.inject.Inject
 import kotlinx.coroutines.*
 import timber.log.Timber
+import kotlin.random.Random
 
 class BrowserWebViewClient @Inject constructor(
     private val webViewHttpAuthStore: WebViewHttpAuthStore,
@@ -88,8 +90,12 @@ class BrowserWebViewClient @Inject constructor(
         view: WebView,
         request: WebResourceRequest,
     ): Boolean {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_SHOULD_OVERRIDE_URL_LOADING", traceCookie)
         val url = request.url
-        return shouldOverride(view, url, request.isForMainFrame)
+        val result = shouldOverride(view, url, request.isForMainFrame)
+        Trace.endAsyncSection("LOAD_PAGE_SHOULD_OVERRIDE_URL_LOADING", traceCookie)
+        return result
     }
 
     /**
@@ -244,6 +250,10 @@ class BrowserWebViewClient @Inject constructor(
         url: String?,
         favicon: Bitmap?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_START_TO_FINISH", 0)
+        Trace.beginAsyncSection("LOAD_PAGE_ON_PAGE_STARTED", traceCookie)
+
         Timber.v("onPageStarted webViewUrl: ${webView.url} URL: $url")
 
         url?.let {
@@ -263,6 +273,8 @@ class BrowserWebViewClient @Inject constructor(
         browserAutofillConfigurator.configureAutofillForCurrentPage(webView, url)
         contentScopeScripts.injectContentScopeScripts(webView)
         loginDetector.onEvent(WebNavigationEvent.OnPageStarted(webView))
+
+        Trace.endAsyncSection("LOAD_PAGE_ON_PAGE_STARTED", traceCookie)
     }
 
     @UiThread
@@ -270,6 +282,9 @@ class BrowserWebViewClient @Inject constructor(
         webView: WebView,
         url: String?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_ON_PAGE_FINISHED", traceCookie)
+
         accessibilityManager.onPageFinished(webView, url)
         url?.let {
             // We call this for any url but it will only be processed for an internal tester verification url
@@ -283,6 +298,9 @@ class BrowserWebViewClient @Inject constructor(
         }
         flushCookies()
         printInjector.injectPrint(webView)
+
+        Trace.endAsyncSection("LOAD_PAGE_START_TO_FINISH", 0)
+        Trace.endAsyncSection("LOAD_PAGE_ON_PAGE_FINISHED", traceCookie)
     }
 
     private fun flushCookies() {
@@ -296,7 +314,10 @@ class BrowserWebViewClient @Inject constructor(
         webView: WebView,
         request: WebResourceRequest,
     ): WebResourceResponse? {
-        return runBlocking {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_SHOULD_INTERCEPT_REQUEST", traceCookie)
+
+        val result = runBlocking {
             val documentUrl = withContext(dispatcherProvider.main()) { webView.url }
             withContext(dispatcherProvider.main()) {
                 loginDetector.onEvent(WebNavigationEvent.ShouldInterceptRequest(webView, request))
@@ -304,6 +325,8 @@ class BrowserWebViewClient @Inject constructor(
             Timber.v("Intercepting resource ${request.url} type:${request.method} on page $documentUrl")
             requestInterceptor.shouldIntercept(request, webView, documentUrl, webViewClientListener)
         }
+        Trace.endAsyncSection("LOAD_PAGE_SHOULD_INTERCEPT_REQUEST", traceCookie)
+        return result
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -311,6 +334,8 @@ class BrowserWebViewClient @Inject constructor(
         view: WebView?,
         detail: RenderProcessGoneDetail?,
     ): Boolean {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_ON_RENDER_PROCESS_GONE", traceCookie)
         Timber.w("onRenderProcessGone. Did it crash? ${detail?.didCrash()}")
         if (detail?.didCrash() == true) {
             pixel.fire(WEB_RENDERER_GONE_CRASH)
@@ -318,6 +343,7 @@ class BrowserWebViewClient @Inject constructor(
             pixel.fire(WEB_RENDERER_GONE_KILLED)
         }
         webViewClientListener?.recoverFromRenderProcessGone()
+        Trace.endAsyncSection("LOAD_PAGE_ON_RENDER_PROCESS_GONE", traceCookie)
         return true
     }
 
@@ -328,6 +354,8 @@ class BrowserWebViewClient @Inject constructor(
         host: String?,
         realm: String?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_ON_RECEIVED_HTTP_AUTH_REQUEST", traceCookie)
         Timber.v("onReceivedHttpAuthRequest ${view?.url} $realm, $host")
         if (handler != null) {
             Timber.v("onReceivedHttpAuthRequest - useHttpAuthUsernamePassword [${handler.useHttpAuthUsernamePassword()}]")
@@ -347,6 +375,7 @@ class BrowserWebViewClient @Inject constructor(
         } else {
             super.onReceivedHttpAuthRequest(view, handler, host, realm)
         }
+        Trace.endAsyncSection("LOAD_PAGE_ON_RECEIVED_HTTP_AUTH_REQUEST", traceCookie)
     }
 
     override fun onReceivedSslError(
@@ -354,6 +383,8 @@ class BrowserWebViewClient @Inject constructor(
         handler: SslErrorHandler,
         error: SslError,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_ON_RECEIVED_SSL_ERROR", traceCookie)
         var trusted: CertificateValidationState = CertificateValidationState.UntrustedChain
         when (error.primaryError) {
             SSL_UNTRUSTED -> {
@@ -365,6 +396,7 @@ class BrowserWebViewClient @Inject constructor(
 
         Timber.d("The certificate authority validation result is $trusted")
         if (trusted is CertificateValidationState.TrustedChain) handler.proceed() else super.onReceivedSslError(view, handler, error)
+        Trace.endAsyncSection("LOAD_PAGE_ON_RECEIVED_SSL_ERROR", traceCookie)
     }
 
     private fun requestAuthentication(
@@ -394,11 +426,14 @@ class BrowserWebViewClient @Inject constructor(
         request: WebResourceRequest?,
         errorResponse: WebResourceResponse?,
     ) {
+        val traceCookie = Random(System.currentTimeMillis()).nextInt()
+        Trace.beginAsyncSection("LOAD_PAGE_ON_RECEIVED_HTTP_ERROR", traceCookie)
         super.onReceivedHttpError(view, request, errorResponse)
         view?.url?.let {
             // We call this for any url but it will only be processed for an internal tester verification url
             internalTestUserChecker.verifyVerificationErrorReceived(it)
         }
+        Trace.endAsyncSection("LOAD_PAGE_ON_RECEIVED_HTTP_ERROR", traceCookie)
     }
 }
 
