@@ -349,7 +349,11 @@ class BrowserTabViewModel @Inject constructor(
 
         class ShowSavedSiteAddedConfirmation(val savedSiteChangedViewState: SavedSiteChangedViewState) : Command()
         class ShowEditSavedSiteDialog(val savedSiteChangedViewState: SavedSiteChangedViewState) : Command()
-        class DeleteSavedSiteConfirmation(val savedSite: SavedSite) : Command()
+        class DeleteSavedSiteConfirmation(
+            val savedSite: SavedSite,
+            val position: Int,
+        ) : Command()
+
         class ShowFireproofWebSiteConfirmation(val fireproofWebsiteEntity: FireproofWebsiteEntity) : Command()
         class DeleteFireproofConfirmation(val fireproofWebsiteEntity: FireproofWebsiteEntity) : Command()
         class ShowPrivacyProtectionEnabledConfirmation(val domain: String) : Command()
@@ -357,9 +361,21 @@ class BrowserTabViewModel @Inject constructor(
         object AskToDisableLoginDetection : Command()
         class AskToFireproofWebsite(val fireproofWebsite: FireproofWebsiteEntity) : Command()
         class AskToAutomateFireproofWebsite(val fireproofWebsite: FireproofWebsiteEntity) : Command()
-        class ShareLink(val url: String, val title: String = "") : Command()
-        class SharePromoLinkRMF(val url: String, val shareTitle: String) : Command()
-        class PrintLink(val url: String, val mediaSize: PrintAttributes.MediaSize) : Command()
+        class ShareLink(
+            val url: String,
+            val title: String = "",
+        ) : Command()
+
+        class SharePromoLinkRMF(
+            val url: String,
+            val shareTitle: String,
+        ) : Command()
+
+        class PrintLink(
+            val url: String,
+            val mediaSize: PrintAttributes.MediaSize,
+        ) : Command()
+
         class CopyLink(val url: String) : Command()
         class FindInPageCommand(val searchTerm: String) : Command()
         class BrokenSiteFeedback(val data: BrokenSiteData) : Command()
@@ -438,6 +454,7 @@ class BrowserTabViewModel @Inject constructor(
             val originalUrl: String,
             val autoSaveLogin: Boolean,
         ) : Command()
+
         class ShowEmailProtectionChooseEmailPrompt(val address: String) : Command()
         object ShowEmailProtectionInContextSignUpPrompt : Command()
         sealed class DaxCommand : Command() {
@@ -467,7 +484,10 @@ class BrowserTabViewModel @Inject constructor(
             val messageResourceId: Int,
         ) : Command()
 
-        data class WebViewError(val errorType: WebViewErrorResponse, val url: String) : Command()
+        data class WebViewError(
+            val errorType: WebViewErrorResponse,
+            val url: String,
+        ) : Command()
     }
 
     sealed class NavigationCommand : Command() {
@@ -1907,7 +1927,8 @@ class BrowserTabViewModel @Inject constructor(
             val favorite = currentBrowserViewState().favorite
             if (favorite != null) {
                 pixel.fire(AppPixelName.MENU_ACTION_REMOVE_FAVORITE_PRESSED.pixelName)
-                removeFavoriteSite(favorite)
+                // removeFavoriteSite(favorite)
+                hide(favorite)
             } else {
                 val buttonHighlighted = currentBrowserViewState().addFavorite.isHighlighted()
                 pixel.fire(
@@ -1932,17 +1953,6 @@ class BrowserTabViewModel @Inject constructor(
         val bookmarkFolder = getBookmarkFolder(savedBookmark)
         withContext(dispatchers.main()) {
             command.value = ShowSavedSiteAddedConfirmation(SavedSiteChangedViewState(savedBookmark, bookmarkFolder))
-        }
-    }
-
-    private fun removeFavoriteSite(favorite: SavedSite.Favorite) {
-        viewModelScope.launch {
-            withContext(dispatchers.io()) {
-                savedSitesRepository.delete(favorite)
-            }
-            withContext(dispatchers.main()) {
-                command.value = DeleteSavedSiteConfirmation(favorite)
-            }
         }
     }
 
@@ -2069,15 +2079,7 @@ class BrowserTabViewModel @Inject constructor(
     }
 
     override fun onSavedSiteDeleted(savedSite: SavedSite) {
-        command.value = DeleteSavedSiteConfirmation(savedSite)
-        delete(savedSite)
-    }
-
-    private fun delete(savedSite: SavedSite) {
-        viewModelScope.launch(dispatchers.io()) {
-            faviconManager.deletePersistedFavicon(savedSite.url)
-            savedSitesRepository.delete(savedSite)
-        }
+        hide(savedSite)
     }
 
     fun onEditSavedSiteRequested(savedSite: SavedSite) {
@@ -2098,10 +2100,6 @@ class BrowserTabViewModel @Inject constructor(
                 )
             }
         }
-    }
-
-    fun onDeleteQuickAccessItemRequested(savedSite: SavedSite) {
-        command.value = DeleteSavedSiteConfirmation(savedSite)
     }
 
     fun onBrokenSiteSelected() {
@@ -2741,11 +2739,17 @@ class BrowserTabViewModel @Inject constructor(
     /**
      * API called after user selected to autofill a private alias into a form
      */
-    fun usePrivateDuckAddress(originalUrl: String, duckAddress: String) {
+    fun usePrivateDuckAddress(
+        originalUrl: String,
+        duckAddress: String,
+    ) {
         command.postValue(InjectEmailAddress(duckAddress = duckAddress, originalUrl = originalUrl, autoSaveLogin = true))
     }
 
-    fun usePersonalDuckAddress(originalUrl: String, duckAddress: String) {
+    fun usePersonalDuckAddress(
+        originalUrl: String,
+        duckAddress: String,
+    ) {
         command.postValue(InjectEmailAddress(duckAddress = duckAddress, originalUrl = originalUrl, autoSaveLogin = false))
     }
 
@@ -2753,12 +2757,61 @@ class BrowserTabViewModel @Inject constructor(
         fileDownloader.enqueueDownload(pendingFileDownload)
     }
 
-    fun deleteQuickAccessItem(savedSite: SavedSite) {
+    fun delete(savedSite: SavedSite) {
         viewModelScope.launch(dispatchers.io() + NonCancellable) {
             if (savedSite is Bookmark) {
                 faviconManager.deletePersistedFavicon(savedSite.url)
             }
             savedSitesRepository.delete(savedSite)
+        }
+    }
+
+    fun hide(savedSite: SavedSite): Int {
+        val oldPosition = if (savedSite is Favorite) {
+            val quickAccessFavorite = FavoritesQuickAccessAdapter.QuickAccessFavorite(savedSite)
+            val quickAccessFavorites = currentCtaViewState().favorites.toMutableList()
+            val index = quickAccessFavorites.indexOf(quickAccessFavorite)
+            quickAccessFavorites.remove(quickAccessFavorite)
+
+            ctaViewState.value = currentCtaViewState().copy(favorites = quickAccessFavorites)
+            browserViewState.value = currentBrowserViewState().copy(favorite = null)
+
+            index
+        } else {
+            browserViewState.value = currentBrowserViewState().copy(bookmark = null, favorite = null)
+            0
+        }
+
+        viewModelScope.launch {
+            withContext(dispatchers.main()) {
+                command.value = DeleteSavedSiteConfirmation(savedSite, oldPosition)
+            }
+        }
+
+        return oldPosition
+    }
+
+    fun undoDelete(
+        savedSite: SavedSite,
+        position: Int,
+    ) {
+        when (savedSite) {
+            is Favorite -> {
+                val quickAccessFavorite = FavoritesQuickAccessAdapter.QuickAccessFavorite(savedSite)
+                val quickAccessFavorites = currentCtaViewState().favorites.toMutableList()
+
+                quickAccessFavorites.add(position, quickAccessFavorite)
+
+                ctaViewState.value = currentCtaViewState().copy(favorites = quickAccessFavorites)
+                browserViewState.value = currentBrowserViewState().copy(favorite = savedSite)
+            }
+
+            is Bookmark -> {
+                val quickAccessFavorites = currentCtaViewState().favorites.toMutableList()
+                val quickAccessFavorite = quickAccessFavorites.find { it.favorite.id == savedSite.id }
+
+                browserViewState.value = currentBrowserViewState().copy(favorite = quickAccessFavorite?.favorite, bookmark = savedSite)
+            }
         }
     }
 
@@ -2830,13 +2883,19 @@ class BrowserTabViewModel @Inject constructor(
         return false
     }
 
-    override fun onReceivedError(errorType: WebViewErrorResponse, url: String) {
+    override fun onReceivedError(
+        errorType: WebViewErrorResponse,
+        url: String,
+    ) {
         browserViewState.value =
             currentBrowserViewState().copy(browserError = errorType, showPrivacyShield = false, showDaxIcon = false, showSearchIcon = false)
         command.postValue(WebViewError(errorType, url))
     }
 
-    override fun recordErrorCode(error: String, url: String) {
+    override fun recordErrorCode(
+        error: String,
+        url: String,
+    ) {
         // when navigating from one page to another it can happen that errors are recorded before pageChanged etc. are
         // called triggering a buildSite.
         if (url != site?.url) {
@@ -2846,7 +2905,10 @@ class BrowserTabViewModel @Inject constructor(
         site?.onErrorDetected(error)
     }
 
-    override fun recordHttpErrorCode(statusCode: Int, url: String) {
+    override fun recordHttpErrorCode(
+        statusCode: Int,
+        url: String,
+    ) {
         // when navigating from one page to another it can happen that errors are recorded before pageChanged etc. are
         // called triggering a buildSite.
         if (url != site?.url) {
