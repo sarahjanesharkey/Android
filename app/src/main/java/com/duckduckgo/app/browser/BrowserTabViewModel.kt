@@ -2755,7 +2755,9 @@ class BrowserTabViewModel @Inject constructor(
 
     fun deleteQuickAccessItem(savedSite: SavedSite) {
         viewModelScope.launch(dispatchers.io() + NonCancellable) {
-            faviconManager.deletePersistedFavicon(savedSite.url)
+            if (savedSite is Bookmark) {
+                faviconManager.deletePersistedFavicon(savedSite.url)
+            }
             savedSitesRepository.delete(savedSite)
         }
     }

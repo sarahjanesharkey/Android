@@ -34,6 +34,7 @@ import com.duckduckgo.app.pixels.AppPixelName.*
 import com.duckduckgo.app.settings.db.SettingsDataStore
 import com.duckduckgo.app.statistics.pixels.Pixel
 import com.duckduckgo.app.systemsearch.SystemSearchViewModel.Command.UpdateVoiceSearch
+import com.duckduckgo.app.systemsearch.SystemSearchViewModel.Suggestions.QuickAccessItems
 import com.duckduckgo.di.scopes.ActivityScope
 import com.duckduckgo.savedsites.api.SavedSitesRepository
 import com.duckduckgo.savedsites.api.models.SavedSite
@@ -87,7 +88,7 @@ class SystemSearchViewModel @Inject constructor(
         object LaunchDuckDuckGo : Command()
         data class LaunchBrowser(val query: String) : Command()
         data class LaunchEditDialog(val savedSite: SavedSite) : Command()
-        data class DeleteSavedSiteConfirmation(val savedSite: SavedSite) : Command()
+        data class DeleteSavedSiteConfirmation(val savedSite: SavedSite, val position: Int) : Command()
         data class LaunchDeviceApplication(val deviceApp: DeviceApp) : Command()
         data class ShowAppNotFoundMessage(val appName: String) : Command()
         object DismissKeyboard : Command()
@@ -220,6 +221,7 @@ class SystemSearchViewModel @Inject constructor(
                         appResults = updatedApps,
                     )
                 }
+
                 is Suggestions.QuickAccessItems -> Suggestions.SystemSearchResultsViewState(
                     autocompleteResults = AutoCompleteResult(results.autocomplete.query, updatedSuggestions),
                     appResults = updatedApps,
@@ -304,8 +306,8 @@ class SystemSearchViewModel @Inject constructor(
     }
 
     fun onDeleteQuickAccessItemRequested(it: FavoritesQuickAccessAdapter.QuickAccessFavorite) {
-        deleteQuickAccessItem(it.favorite)
-        command.value = Command.DeleteSavedSiteConfirmation(it.favorite)
+        val position = hideQuickAccessItem(it)
+        command.value = Command.DeleteSavedSiteConfirmation(it.favorite, position)
     }
 
     companion object {
@@ -328,25 +330,38 @@ class SystemSearchViewModel @Inject constructor(
         }
     }
 
-    private fun deleteQuickAccessItem(savedSite: SavedSite) {
+    fun deleteQuickAccessItem(savedSite: SavedSite) {
         when (savedSite) {
             is SavedSite.Favorite -> {
                 viewModelScope.launch(dispatchers.io() + NonCancellable) {
                     savedSitesRepository.delete(savedSite)
                 }
             }
+
             else -> throw IllegalArgumentException("Illegal SavedSite to delete received")
         }
     }
 
-    fun insertQuickAccessItem(savedSite: SavedSite) {
-        when (savedSite) {
-            is SavedSite.Favorite -> {
-                viewModelScope.launch(dispatchers.io()) {
-                    savedSitesRepository.insert(savedSite)
-                }
-            }
-            else -> throw IllegalArgumentException("Illegal SavedSite to delete received")
+    private fun hideQuickAccessItem(quickAccessFavourite: FavoritesQuickAccessAdapter.QuickAccessFavorite): Int {
+        val quickAccessItems = resultsViewState.value as QuickAccessItems
+        val favourites = quickAccessItems.favorites.toMutableList()
+        val index = favourites.indexOf(quickAccessFavourite)
+        favourites.remove(quickAccessFavourite)
+
+        latestQuickAccessItems = QuickAccessItems(favourites)
+        resultsViewState.postValue(latestQuickAccessItems)
+        return index
+    }
+
+    fun undoDelete(savedSite: SavedSite, oldPosition: Int) {
+        if (savedSite is Favorite) {
+            val quickAccessItems = resultsViewState.value as QuickAccessItems
+            val favourites = quickAccessItems.favorites.toMutableList()
+            val restoredFavourite = FavoritesQuickAccessAdapter.QuickAccessFavorite(savedSite)
+            favourites.add(oldPosition, restoredFavourite)
+
+            latestQuickAccessItems = QuickAccessItems(favourites)
+            resultsViewState.postValue(latestQuickAccessItems)
         }
     }
 
