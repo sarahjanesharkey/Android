@@ -164,6 +164,7 @@ import com.duckduckgo.app.tabs.ui.GridViewColumnCalculator
 import com.duckduckgo.app.tabs.ui.TabSwitcherActivity
 import com.duckduckgo.app.widget.AddWidgetLauncher
 import com.duckduckgo.appbuildconfig.api.AppBuildConfig
+import com.duckduckgo.appbuildconfig.api.isInternalBuild
 import com.duckduckgo.autoconsent.api.Autoconsent
 import com.duckduckgo.autoconsent.api.AutoconsentCallback
 import com.duckduckgo.autofill.api.AutofillCapabilityChecker
@@ -2124,7 +2125,7 @@ class BrowserTabFragment :
             )
         }
 
-        if (appBuildConfig.isDebug) {
+        if (appBuildConfig.isDebug || appBuildConfig.isInternalBuild()) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
     }
