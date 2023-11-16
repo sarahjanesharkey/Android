@@ -176,17 +176,10 @@ class BookmarksActivity : DuckDuckGoActivity() {
         ) { viewState ->
             viewState?.let { state ->
                 if (parentId == SavedSitesNames.BOOKMARKS_ROOT) {
-                    favoritesAdapter?.setItems(state.favorites.filter { it.deleted == null }.map { FavoritesAdapter.FavoriteItem(it) })
+                    favoritesAdapter?.setItems(state.favorites.map { FavoritesAdapter.FavoriteItem(it) })
                 }
-                bookmarksAdapter.setItems(
-                    state.bookmarks.filter { it.deleted == null }.map { BookmarksAdapter.BookmarkItem(it) },
-                    state.bookmarkFolders.isEmpty(),
-                )
-                bookmarkFoldersAdapter.bookmarkFolderItems = state.bookmarkFolders.filter { it.deleted == null }.map {
-                    BookmarkFoldersAdapter.BookmarkFolderItem(
-                        it,
-                    )
-                }
+                bookmarksAdapter.setItems(state.bookmarks.map { BookmarksAdapter.BookmarkItem(it) }, state.bookmarkFolders.isEmpty())
+                bookmarkFoldersAdapter.bookmarkFolderItems = state.bookmarkFolders.map { BookmarkFoldersAdapter.BookmarkFolderItem(it) }
                 setSearchMenuItemVisibility()
             }
         }
@@ -434,7 +427,7 @@ class BookmarksActivity : DuckDuckGoActivity() {
             .addEventListener(
                 object : EventListener() {
                     override fun onPositiveButtonClicked() {
-                        viewModel.hide(bookmarkFolder)
+                        viewModel.onDeleteFolderAccepted(bookmarkFolder)
                     }
                 },
             )
