@@ -131,7 +131,11 @@ class BookmarksViewModel @Inject constructor(
         hide(savedSite)
     }
 
-    fun delete(savedSite: SavedSite) {
+    fun onDeleteSavedSiteSnackbarDismissed(savedSite: SavedSite){
+        delete(savedSite)
+    }
+
+    private fun delete(savedSite: SavedSite) {
         viewModelScope.launch(dispatcherProvider.io() + NonCancellable) {
             if (savedSite is Bookmark) {
                 faviconManager.deletePersistedFavicon(savedSite.url)
@@ -241,7 +245,11 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
-    fun delete(bookmarkFolder: BookmarkFolder) {
+    fun onDeleteBookmarkFolderSnackbarDismissed(bookmarkFolder: BookmarkFolder){
+        delete(bookmarkFolder)
+    }
+
+    private fun delete(bookmarkFolder: BookmarkFolder) {
         viewModelScope.launch(dispatcherProvider.io() + NonCancellable) {
             savedSitesRepository.deleteFolderBranch(bookmarkFolder)
         }

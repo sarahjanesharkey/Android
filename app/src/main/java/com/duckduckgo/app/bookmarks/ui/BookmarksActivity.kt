@@ -364,12 +364,9 @@ class BookmarksActivity : DuckDuckGoActivity() {
                     override fun onDismissed(
                         transientBottomBar: Snackbar?,
                         event: Int,
-                    ) {
-                        // when snackbar is not dismissed because of an action we want to
-                        // actually delete the saved site
-                        Timber.d("Bookmark: dismissed with $event")
+                    ) { )
                         if (event != DISMISS_EVENT_ACTION) {
-                            viewModel.delete(savedSite)
+                            viewModel.onDeleteSavedSiteSnackbarDismissed(savedSite)
                         }
                     }
                 },
@@ -394,11 +391,8 @@ class BookmarksActivity : DuckDuckGoActivity() {
                         transientBottomBar: Snackbar?,
                         event: Int,
                     ) {
-                        // when snackbar is not dismissed because of an action we want to
-                        // actually delete the saved site
-                        Timber.d("Bookmark: dismissed with $event")
                         if (event != DISMISS_EVENT_ACTION) {
-                            viewModel.delete(bookmarkFolder)
+                            viewModel.onDeleteBookmarkFolderSnackbarDismissed(bookmarkFolder)
                         }
                     }
                 },
