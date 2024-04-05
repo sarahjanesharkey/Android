@@ -123,7 +123,9 @@ class BrowserWebViewClient @Inject constructor(
         url: Uri,
         isForMainFrame: Boolean,
     ): Boolean {
-        Timber.v("shouldOverride webViewUrl: ${webView.url} URL: $url")
+        appCoroutineScope.launch(dispatcherProvider.main()) {
+            Timber.v("shouldOverride webViewUrl: ${webView.url} URL: $url")
+        }
         try {
             if (isForMainFrame && dosDetector.isUrlGeneratingDos(url)) {
                 webView.loadUrl("about:blank")
@@ -264,7 +266,7 @@ class BrowserWebViewClient @Inject constructor(
         }
     }
 
-    override fun onPageCommitVisible (webView: WebView, url: String) {
+    override fun onPageCommitVisible(webView: WebView, url: String) {
         // Show only when the commit matches the tab state
         if (webView.url == url) {
             Timber.v("onPageCommitVisible webViewUrl: ${webView.url} URL: $url")
